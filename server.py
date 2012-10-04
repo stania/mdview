@@ -7,10 +7,12 @@ Created on 2012. 9. 30.
 
 import cherrypy
 import markdown2
-import os, time
+import os, time, sys, imp
 import win32api
 import win32event
 import pywintypes
+import StringIO
+import resource
 from jinja2 import Template
 
 from cherrypy.lib.static import serve_file
@@ -19,11 +21,28 @@ markdowner = markdown2.Markdown()
 
 debug = False
 
+RES_ID = {}
+
+def main_is_frozen():
+    return (hasattr(sys, "frozen") or
+            hasattr(sys, "importers") or
+            imp.is_frozen("__main__"))
+
 def get_base_dir():
     return base_dir
 
+if main_is_frozen():
+    RES_ID = resource.res_id_dict()
+
 def get_resource(path):
-    return serve_file(os.path.join(get_base_dir(), ".res", path))
+    if main_is_frozen():
+        if RES_ID.has_key(path):
+            return serve_fileobj(StringIO(LoadResource(0, u'RESOURCE', RES_ID[path])))
+        else:
+            raise cherrypy.NotFound
+
+    else:
+        return serve_file(os.path.join(get_base_dir(), ".res", path))
 
 class Root(object):
     def cmd_handler(self, args, kwargs):

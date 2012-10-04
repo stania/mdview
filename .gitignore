@@ -6,3 +6,5 @@ build
 *.pyc
 *.exe
 tcl
+.*.swp
+_reslist.py
