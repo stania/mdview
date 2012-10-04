@@ -16,15 +16,18 @@ import resource
 import webbrowser
 import threading
 import glob
+import mimetypes
+import codecs
+import urllib
 from jinja2 import Template
 
-from cherrypy.lib.static import serve_file, staticdir
+from cherrypy.lib.static import serve_file, staticdir, serve_fileobj
 
 markdowner = markdown2.Markdown()
 
 debug = False
 
-server_port = 8080
+server_port = 7559
 
 RES_ID = {}
 
@@ -39,15 +42,39 @@ def get_base_dir():
 if main_is_frozen():
     RES_ID = resource.res_id_dict()
 
+def get_res_data(path):
+    if main_is_frozen():
+        path = path.replace("/", "\\")
+        if RES_ID.has_key(path):
+            res = win32api.LoadResource(0, u'RESOURCE', RES_ID[path])
+            return StringIO.StringIO(res).read()
+        else:
+            return None
+    else:
+        return open(os.path.join(get_base_dir(), ".res", path)).read()
+
+def get_content_type(path):
+    guess = mimetypes.guess_type(path)[0]
+    if guess != None:
+        return guess
+    elif os.path.splitext(path)[-1] == ".md":
+        return "text/plain"
+    else:
+        return "application/octet-stream"
+
+
 def get_resource(path):
     if main_is_frozen():
+        path = path.replace("/", "\\")
         if RES_ID.has_key(path):
-            return serve_fileobj(StringIO(LoadResource(0, u'RESOURCE', RES_ID[path])))
+            return serve_fileobj(
+                StringIO.StringIO(win32api.LoadResource(0, u'RESOURCE', RES_ID[path])),
+                content_type=get_content_type(path)
+                )
         else:
             raise cherrypy.NotFound
-
     else:
-        return serve_file(os.path.join(get_base_dir(), ".res", path))
+        return serve_file(os.path.join(get_base_dir(), path))
 
 class Root(object):
     def find_indexfile(self, *args):
@@ -68,34 +95,45 @@ class Root(object):
             raise cherrypy.HTTPRedirect(indexpath)
         result = ""
         entries = os.listdir(subpath)
+        result += "<p>This program renders *.md with Markdown renderer.</p>\n"
         result += "<ul>\n"
-        if subpath is not basedir:
+        md_exists = False
+        if subpath != basedir:
             result += """\t<li><a href="..">..</a></li>\n"""
         for entry in entries:
             if entry is ".":
                 continue
+            if entry.endswith(".md"):
+                md_exists = True
             result += """\t<li><a href="{}">{}</a></li>\n""".format(entry, entry)
-        result += "</ul>"
+        result += "</ul>\n"
+        if not md_exists:
+            result += "<p>You don't have any Markdown document! You can start with creating Markdown document within same directory with server.exe</p>"
         return result
         
     def cmd_handler(self, *args, **kwargs):
-        if len(args) > 0 and args[0] is ".res":
-            return get_resource("/".join(args[1:]))
-        pass
+        if len(args) > 0 and args[0] == ".res":
+            return get_resource("/".join(args))
+        else:
+            raise cherrypy.NotFound
     
     def render_markdown(self, path):
         f = None
         try:
-            f = open(os.path.join(get_base_dir(), path))
-            return markdowner.convert(f.read())
-        except:
-            raise cherrypy.HTTPError(500)
+            f = open(os.path.join(get_base_dir(), path), "rb")
+            data = f.read()
+            try: 
+                data = data.decode("utf-8")
+            except:
+                print "file is mbcs"
+                data = data.decode("mbcs")
+            return markdowner.convert(data.encode("utf-8"))
         finally:
             if f: f.close()
 
     @cherrypy.expose
     def default(self, *args, **kwargs): # fallback
-        template = Template(open(os.path.join(get_base_dir(), ".res", "default.html")).read())
+        template = Template(get_res_data(".res/default.html"))
         return self.default_dispatcher(template, args, **kwargs)
 
     def default_dispatcher(self, template, args, **kwargs):
@@ -103,8 +141,9 @@ class Root(object):
             if debug: print "/".join(["/ar"] + list(args))
             raise cherrypy.HTTPRedirect("/".join(["/ar"] + list(args)))
         if len(args) > 0 and args[0][0] is '.':
-            self.cmd_handler(*args, **kwargs)
+            return self.cmd_handler(*args, **kwargs)
         subpath = "/".join(args)
+        subpath = subpath.decode("utf-8")
         if debug: print "default:", subpath
         if subpath.endswith(".md"):
             if template:
@@ -121,12 +160,13 @@ class Root(object):
         subpath = "/".join(args)
         if not subpath.endswith(".md"):
             raise cherrypy.HTTPRedirect(subpath)
-        template = Template(open(os.path.join(get_base_dir(), ".res", "ar.html")).read())
+        template = Template(get_res_data(".res/ar.html"))
         return self.default_dispatcher(template, args, **kwargs)
         
     @cherrypy.expose
     def wfc(self, *args, **kwargs): #wait for change
         subpath = "/".join(args)
+        subpath = subpath.decode("utf-8")
         if debug: print "wfc:", subpath
         f = os.path.abspath(os.path.join(get_base_dir(), subpath))
         parent = os.path.dirname(f)

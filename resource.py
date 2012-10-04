@@ -10,6 +10,7 @@ def main_is_frozen():
 if main_is_frozen():
     __import__("_reslist")
     res_list = getattr(sys.modules["_reslist"], "_res")
+    res_list.sort()
 else:
     res_list = glob.glob(".res/*.*")
     res_list.sort()
