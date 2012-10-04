@@ -15,9 +15,11 @@ import StringIO
 import resource
 import webbrowser
 import threading
+import glob
+from tendo import singleton
 from jinja2 import Template
 
-from cherrypy.lib.static import serve_file
+from cherrypy.lib.static import serve_file, staticdir
 
 markdowner = markdown2.Markdown()
 
@@ -49,19 +51,48 @@ def get_resource(path):
         return serve_file(os.path.join(get_base_dir(), ".res", path))
 
 class Root(object):
-    def cmd_handler(self, args, kwargs):
+    def find_indexfile(self, *args):
+        basedir = "/".join(args)
+        for entry in ["index.html", "index.md"]:
+            if os.path.exists(os.path.join(basedir, entry)):
+                return entry
+        return None
+
+    def dir_handler(self, basedir, *args):
+        subpath = os.path.join(basedir, *args)
+        subpath = os.path.normpath(subpath)
+        if not subpath.startswith(basedir):
+            raise cherrypy.HTTPError(403)
+        if self.find_indexfile(subpath):
+            print "index found", self.find_indexfile(subpath), "/".join([subpath, self.find_indexfile(subpath)])
+            indexpath = "/".join(args) + "/" + self.find_indexfile(subpath)
+            raise cherrypy.HTTPRedirect(indexpath)
+        result = ""
+        entries = os.listdir(subpath)
+        result += "<ul>\n"
+        if subpath is not basedir:
+            result += """\t<li><a href="..">..</a></li>\n"""
+        for entry in entries:
+            if entry is ".":
+                continue
+            result += """\t<li><a href="{}">{}</a></li>\n""".format(entry, entry)
+        result += "</ul>"
+        return result
+        
+    def cmd_handler(self, *args, **kwargs):
         if len(args) > 0 and args[0] is ".res":
             return get_resource("/".join(args[1:]))
         pass
     
     def render_markdown(self, path):
+        f = None
         try:
             f = open(os.path.join(get_base_dir(), path))
             return markdowner.convert(f.read())
         except:
             raise cherrypy.HTTPError(500)
         finally:
-            f.close()
+            if f: f.close()
 
     @cherrypy.expose
     def default(self, *args, **kwargs): # fallback
@@ -81,6 +112,8 @@ class Root(object):
                 return template.render(path=subpath, contents=self.render_markdown(subpath))
             else:
                 return self.render_markdown(subpath)
+        elif os.path.isdir(os.path.join(get_base_dir(), subpath)):
+            return self.dir_handler(get_base_dir(), subpath)
         else:
             return serve_file(os.path.join(get_base_dir(), subpath))
         
@@ -116,16 +149,24 @@ class Root(object):
     
     @cherrypy.expose
     def index(self, *args, **kwargs):
-        return "specify path"
+        return self.default_dispatcher(None, args, **kwargs)
     
-base_dir = os.getcwd()
-print "base directory:", base_dir
-cherrypy.tree.mount(Root())
-cherrypy.server.socket_port = server_port
-cherrypy.engine.blocking = False
-cherrypy.engine.start()
-t = threading.Thread(target=lambda: webbrowser.open("http://localhost:"+str(server_port)))
-t.start()
-print "engine started"
-cherrypy.engine.block()
+t = None
+try: 
+    me = singleton.SingleInstance()
+    print "asdf"
+    base_dir = os.getcwd()
+    print "base directory:", base_dir
+    cherrypy.tree.mount(Root())
+    cherrypy.server.socket_port = server_port
+    cherrypy.engine.blocking = False
+    cherrypy.engine.start()
+    t = threading.Thread(target=lambda: webbrowser.open("http://localhost:"+str(server_port)))
+    t.start()
+    cherrypy.engine.block()
+finally:
+    if not t:
+        t = threading.Thread(target=lambda: webbrowser.open("http://localhost:"+str(server_port)))
+        t.start()
+        
 
