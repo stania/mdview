@@ -1,13 +1,74 @@
+<!doctype html>
 <html>
     <head>  
         <meta http-equiv="content-type" content="text/html; charset=utf-8">  
         <title>{{ path }}</title>  
         <link rel="stylesheet" type="text/css" href="/.res/style.css">  
         <script type="text/javascript" src="/.res/jquery-1.8.2.min.js"></script>
+        <style type="text/css">
+            #floating_menu {
+                background: #eeeeee;
+                position: fixed;
+                float: right;
+                top: 0px;
+                right: 0px;
+                padding: 3px 1em 3px 1em;
+            }
+        </style>
         <script type="text/javascript">
+            var _timeout = 30000;
+            var _ar_status = false;
+            var _current_req = null;
+            function waitForChange() {
+                if (!_ar_status)
+                    return;
+                url = "/wfc/"+window.location.pathname+"?timeout="+_timeout;
+                console.debug(url+"\n");
+                _current_req = $.ajax(url,
+                    {
+                        timeout: _timeout,
+                        success: function(data, status, xhr) {
+                            _current_req = null;
+                            if (_ar_status) {
+                                console.debug(data);
+                                $("#contents").html(data);
+                                setTimeout(waitForChange, 0);
+                            }
+                        },
+                        error: function(status, xhr, error) {
+                        _current_req = null;
+                            console.debug(status);
+                            console.debug(error);
+                            if (_ar_status) {
+                                console.debug("error occurred. retrying");
+                                setTimeout(waitForChange, 1000);
+                            } else {
+                                console.debug("error occurred. stop.");
+                            }
+                        },
+                    }
+                    );
+            };
+            function toggle_refresh() {
+                _ar_status = _ar_status ? false : true;
+                if (!_ar_status && _current_req != null) {
+                    _current_req.abort();
+                    _current_req = null;
+                }
+                if (_ar_status) {
+                    $("#ar_status").html("on");
+                    waitForChange();
+                } else {
+                    $("#ar_status").html("off");
+                }
+            };
+            $(document).ready(waitForChange);
         </script>  
     </head>  
     <body>  
+        <div id="floating_menu">
+            <a href="#" onclick="javascript:toggle_refresh();return false;">auto refresh: <span id="ar_status">off</span></a>
+        </div>
         <div id="contents">
             {{ contents }}
         </div>

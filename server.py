@@ -65,6 +65,10 @@ class Root(object):
 
     @cherrypy.expose
     def default(self, *args, **kwargs): # fallback
+        template = Template(open(os.path.join(get_base_dir(), ".res", "default.html")).read())
+        return self.default_dispatcher(template, args, **kwargs)
+
+    def default_dispatcher(self, template, args, **kwargs):
         if kwargs.has_key("ar"):
             if debug: print "/".join(["/ar"] + list(args))
             raise cherrypy.HTTPRedirect("/".join(["/ar"] + list(args)))
@@ -73,18 +77,20 @@ class Root(object):
         subpath = "/".join(args)
         if debug: print "default:", subpath
         if subpath.endswith(".md"):
-            template = Template(open(os.path.join(get_base_dir(), ".res", "default.html")).read())
-            return template.render(path=subpath, contents=self.render_markdown(subpath))
+            if template:
+                return template.render(path=subpath, contents=self.render_markdown(subpath))
+            else:
+                return self.render_markdown(subpath)
         else:
             return serve_file(os.path.join(get_base_dir(), subpath))
         
     @cherrypy.expose
     def ar(self, *args, **kwargs):
-        template = Template(open(os.path.join(get_base_dir(), ".res", "ar.html")).read())
         subpath = "/".join(args)
         if not subpath.endswith(".md"):
             raise cherrypy.HTTPRedirect(subpath)
-        return template.render(path=subpath, contents=self.render_markdown(subpath))
+        template = Template(open(os.path.join(get_base_dir(), ".res", "ar.html")).read())
+        return self.default_dispatcher(template, args, **kwargs)
         
     @cherrypy.expose
     def wfc(self, *args, **kwargs): #wait for change
@@ -100,7 +106,7 @@ class Root(object):
             if ret is win32event.WAIT_TIMEOUT:
                 raise cherrypy.HTTPError(304) 
             time.sleep(0.2)
-            return self.default(*args, **kwargs)
+            return self.default_dispatcher(None, args, **kwargs)
         except pywintypes.error as e: #@UndefinedVariable
             print e[2]
             raise cherrypy.HTTPError(500)
