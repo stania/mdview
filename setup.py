@@ -18,7 +18,7 @@ py2exe_options = dict(
     )
 
 setup(windows=[{
-            'script': "server.py", 
+            'script': "mdview.py", 
             'other_resources': resource.py2exe_list()
                 }], 
         zipfile=None,
