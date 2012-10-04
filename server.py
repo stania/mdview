@@ -69,7 +69,8 @@ class Root(object):
         subpath = "/".join(args)
         if debug: print "default:", subpath
         if subpath.endswith(".md"):
-            return self.render_markdown(subpath)
+            template = Template(open(os.path.join(get_base_dir(), ".res", "default.html")).read())
+            return template.render(path=subpath, contents=self.render_markdown(subpath))
         else:
             return serve_file(os.path.join(get_base_dir(), subpath))
         
