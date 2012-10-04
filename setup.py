@@ -14,10 +14,8 @@ py2exe_options = dict(
     dll_excludes=['msvcr71.dll', "w9xpopen.exe", 'mswsock.dll', 'powrprof.dll'],  # Exclude msvcr71
     compressed=True,  # Compress library.zip
     bundle_files=1,
-    dist_dir=".",
+    dist_dir="bin",
     )
-
-print resource.py2exe_list()
 
 setup(console=[{
             'script': "server.py", 
