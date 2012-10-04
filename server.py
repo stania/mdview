@@ -16,7 +16,6 @@ import resource
 import webbrowser
 import threading
 import glob
-from tendo import singleton
 from jinja2 import Template
 
 from cherrypy.lib.static import serve_file, staticdir
@@ -150,11 +149,24 @@ class Root(object):
     @cherrypy.expose
     def index(self, *args, **kwargs):
         return self.default_dispatcher(None, args, **kwargs)
+
+class MutexException(BaseException):
+    pass
+
+mutex_handle = None
+class single_instance():
+    def __init__(self):
+        global mutex_handle
+        ERROR_ALREADY_EXISTS = 183
+        mutex_handle = win32event.CreateMutex(None, 1, "MDVIEW")
+        if mutex_handle and win32api.GetLastError() is ERROR_ALREADY_EXISTS:
+            raise MutexException()
+        else:
+            print "mutex created", mutex_handle
     
 t = None
 try: 
-    me = singleton.SingleInstance()
-    print "asdf"
+    me = single_instance()
     base_dir = os.getcwd()
     print "base directory:", base_dir
     cherrypy.tree.mount(Root())
@@ -164,6 +176,8 @@ try:
     t = threading.Thread(target=lambda: webbrowser.open("http://localhost:"+str(server_port)))
     t.start()
     cherrypy.engine.block()
+except MutexException:
+    pass
 finally:
     if not t:
         t = threading.Thread(target=lambda: webbrowser.open("http://localhost:"+str(server_port)))

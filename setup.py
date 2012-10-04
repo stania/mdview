@@ -9,7 +9,7 @@ py2exe_options = dict(
     includes=['_reslist'],
     packages=["encodings", "email", "BaseHTTPServer", "httplib", "Cookie"],
     excludes=[#'_ssl',  # Exclude _ssl
-              'pyreadline', 'difflib', 'doctest', 'locale',
+              'pyreadline', 'doctest', 'locale',
               'pickle', 'calendar'],  # Exclude standard library
     dll_excludes=['msvcr71.dll', "w9xpopen.exe", 'mswsock.dll', 'powrprof.dll'],  # Exclude msvcr71
     compressed=True,  # Compress library.zip
@@ -17,7 +17,7 @@ py2exe_options = dict(
     dist_dir="bin",
     )
 
-setup(console=[{
+setup(windows=[{
             'script': "server.py", 
             'other_resources': resource.py2exe_list()
                 }], 
