@@ -13,6 +13,8 @@ import win32event
 import pywintypes
 import StringIO
 import resource
+import webbrowser
+import threading
 from jinja2 import Template
 
 from cherrypy.lib.static import serve_file
@@ -20,6 +22,8 @@ from cherrypy.lib.static import serve_file
 markdowner = markdown2.Markdown()
 
 debug = False
+
+server_port = 8080
 
 RES_ID = {}
 
@@ -111,10 +115,11 @@ class Root(object):
 base_dir = os.getcwd()
 print "base directory:", base_dir
 cherrypy.tree.mount(Root())
+cherrypy.server.socket_port = server_port
+cherrypy.engine.blocking = False
 cherrypy.engine.start()
-cherrypy.server.socket_port = 8080
-cherrypy.server.start()
-#webbrowser.open("http://localhost:8080")
-print "open browser"
+t = threading.Thread(target=lambda: webbrowser.open("http://localhost:"+str(server_port)))
+t.start()
+print "engine started"
 cherrypy.engine.block()
 
