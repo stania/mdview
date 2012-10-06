@@ -51,7 +51,7 @@ def get_res_data(path):
         else:
             return None
     else:
-        return open(os.path.join(get_base_dir(), ".res", path)).read()
+        return open(os.path.join(get_base_dir(), path)).read()
 
 def get_content_type(path):
     guess = mimetypes.guess_type(path)[0]
@@ -87,29 +87,47 @@ class Root(object):
     def dir_handler(self, basedir, *args):
         subpath = os.path.join(basedir, *args)
         subpath = os.path.normpath(subpath)
+
         if not subpath.startswith(basedir):
             raise cherrypy.HTTPError(403)
+
         if self.find_indexfile(subpath):
             print "index found", self.find_indexfile(subpath), "/".join([subpath, self.find_indexfile(subpath)])
             indexpath = "/".join(args) + "/" + self.find_indexfile(subpath)
             raise cherrypy.HTTPRedirect(indexpath)
-        result = ""
-        entries = os.listdir(subpath)
-        result += "<p>This program renders *.md with Markdown renderer.</p>\n"
-        result += "<ul>\n"
+
+        result = u""
+        result += u"<p>This program renders *.md with Markdown renderer.</p>\n"
+        result += u"<ul>\n"
+
         md_exists = False
+
+        # if subpath contains non-ascii char, type(subpath) is unicode. unless, str.
+        # let's make it as same type
+        if type(subpath) == str:
+            subpath = subpath.decode("utf-8")
+        # below here, subpath is now unicode
+
+        entries = os.listdir(subpath)
+        print type(entries[0])
         if subpath != basedir:
-            result += """\t<li><a href="..">..</a></li>\n"""
+            result += u"""\t<li><a href="..">../</a></li>\n"""
+
         for entry in entries:
-            if entry is ".":
+            if entry is u".":
                 continue
-            if entry.endswith(".md"):
+            if entry.endswith(u".md"):
                 md_exists = True
-            result += """\t<li><a href="{}">{}</a></li>\n""".format(entry, entry)
-        result += "</ul>\n"
+            if os.path.isdir(entry):
+                entry += u"/"
+            result += u"""\t<li><a href="{}">{}</a></li>\n""".format(entry, entry)
+        result += u"</ul>\n"
+
         if not md_exists:
-            result += "<p>You don't have any Markdown document! You can start with creating Markdown document within same directory with server.exe</p>"
-        return result
+            result += u"<p>You don't have any Markdown document! You can start with creating Markdown document within same directory with executable(ex: mdview.exe)</p>"
+
+        template = Template(get_res_data(".res/dirindex.html"))
+        return template.render(path=subpath, contents=result)
         
     def cmd_handler(self, *args, **kwargs):
         if len(args) > 0 and args[0] == ".res":
