@@ -19,31 +19,38 @@
             var _timeout = 30000;
             var _ar_status = false;
             var _current_req = null;
+            function debug(str) {
+                try {
+                    console.debug(str);
+                } catch (e) {
+                    console.log(str);
+                }
+            }
             function waitForChange() {
                 if (!_ar_status)
                     return;
-                url = "/wfc/"+window.location.pathname+"?timeout="+_timeout;
-                console.debug(url+"\n");
+                url = "/wfc/"+encodeURI(window.location.pathname)+"?timeout="+_timeout;
+                debug(url+"\n");
                 _current_req = $.ajax(url,
                     {
                         timeout: _timeout,
                         success: function(data, status, xhr) {
                             _current_req = null;
                             if (_ar_status) {
-                                console.debug(data);
+                                debug(data);
                                 $("#contents").html(data);
                                 setTimeout(waitForChange, 0);
                             }
                         },
                         error: function(status, xhr, error) {
                         _current_req = null;
-                            console.debug(status);
-                            console.debug(error);
+                            debug(status);
+                            debug(error);
                             if (_ar_status) {
-                                console.debug("error occurred. retrying");
+                                debug("error occurred. retrying");
                                 setTimeout(waitForChange, 1000);
                             } else {
-                                console.debug("error occurred. stop.");
+                                debug("error occurred. stop.");
                             }
                         },
                     }
