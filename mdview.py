@@ -12,7 +12,6 @@ import win32api
 import win32event
 import pywintypes
 import StringIO
-import resource
 import webbrowser
 import threading
 import glob
@@ -21,18 +20,15 @@ import codecs
 import urllib
 from jinja2 import Template
 
+import resource
+from settings import load_settings
+
 from cherrypy.lib.static import serve_file, staticdir, serve_fileobj
 
 markdowner = markdown2.Markdown()
 
-server_port = 7559
-RES_PATH = ".res"
 
-
-# debug parameters 
-base_dir = r"C:\Dropbox\md_docs"
-res_dir = os.path.join(os.getcwd(), RES_PATH)
-debug = False
+settings = load_settings()
 
 RES_ID = {}
 
@@ -42,10 +38,10 @@ def main_is_frozen():
             imp.is_frozen("__main__"))
 
 def get_base_dir():
-    return base_dir
+    return settings.base_dir
 
 def get_res_dir():
-    return res_dir
+    return settings.res_dir
 
 if main_is_frozen():
     RES_ID = resource.res_id_dict()
@@ -144,7 +140,7 @@ class Root(object):
         return template.render(path=subpath, contents=result)
         
     def cmd_handler(self, *args, **kwargs):
-        if len(args) > 0 and args[0] == RES_PATH:
+        if len(args) > 0 and args[0] == settings.RES_PATH:
             return serve_resource(self._get_subpath(args[1:]))
         else:
             raise cherrypy.NotFound
@@ -171,12 +167,12 @@ class Root(object):
     def default_dispatcher(self, template, args, **kwargs):
         if kwargs.has_key("ar"):
             _subpath = self._get_subpath(["/ar"] + list(args))
-            if debug: print _subpath
+            if settings.debug: print _subpath
             raise cherrypy.HTTPRedirect(_subpath)
         if len(args) > 0 and args[0][0] is '.':
             return self.cmd_handler(*args, **kwargs)
         subpath = self._get_subpath(args)
-        if debug: print "default:", subpath
+        if settings.debug: print "default:", subpath
         if subpath.endswith(".md"):
             if template:
                 return template.render(path=subpath, contents=self.render_markdown(subpath))
@@ -198,7 +194,7 @@ class Root(object):
     @cherrypy.expose
     def wfc(self, *args, **kwargs): #wait for change
         subpath = self._get_subpath(args)
-        if debug: print "wfc:", subpath
+        if settings.debug: print "wfc:", subpath
         f = os.path.abspath(os.path.join(get_base_dir(), subpath))
         parent = os.path.dirname(f)
         timeout = kwargs.has_key("timeout") and int(kwargs["timeout"]) or 60000
@@ -238,23 +234,21 @@ class single_instance():
 t = None
 try: 
     me = single_instance()
-    if not debug:
-        print "running in production mode"
-        base_dir = os.getcwd()
-        res_dir = os.path.join(os.getcwd(), RES_PATH)
-    print "base directory:", base_dir
+    if not settings.debug:
+        print "RUNNING IN PRODUCTION MODE"
+    print "base directory:", settings.base_dir
     cherrypy.tree.mount(Root())
-    cherrypy.server.socket_port = server_port
+    cherrypy.server.socket_port = settings.server_port
     cherrypy.engine.blocking = False
     cherrypy.engine.start()
-    t = threading.Thread(target=lambda: webbrowser.open("http://localhost:"+str(server_port)))
+    t = threading.Thread(target=lambda: webbrowser.open("http://localhost:"+str(settings.server_port)))
     t.start()
     cherrypy.engine.block()
 except MutexException:
     pass
 finally:
     if not t:
-        t = threading.Thread(target=lambda: webbrowser.open("http://localhost:"+str(server_port)))
+        t = threading.Thread(target=lambda: webbrowser.open("http://localhost:"+str(settings.server_port)))
         t.start()
         
 
