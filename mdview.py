@@ -84,7 +84,8 @@ class Root(object):
     @classmethod
     def _get_subpath(cls, args):
         subpath = urllib.unquote("/".join(args))
-        subpath = subpath.decode("utf_8")
+        if type(subpath) == str:
+            subpath = subpath.decode("utf-8")
         return subpath
         
     def find_indexfile(self, *args):
