@@ -25,9 +25,14 @@ from cherrypy.lib.static import serve_file, staticdir, serve_fileobj
 
 markdowner = markdown2.Markdown()
 
-debug = False
-
 server_port = 7559
+RES_PATH = ".res"
+
+
+# debug parameters 
+base_dir = r"C:\Dropbox\md_docs"
+res_dir = os.path.join(os.getcwd(), RES_PATH)
+debug = False
 
 RES_ID = {}
 
@@ -38,6 +43,9 @@ def main_is_frozen():
 
 def get_base_dir():
     return base_dir
+
+def get_res_dir():
+    return res_dir
 
 if main_is_frozen():
     RES_ID = resource.res_id_dict()
@@ -51,7 +59,7 @@ def get_res_data(path):
         else:
             return None
     else:
-        return open(os.path.join(get_base_dir(), path)).read()
+        return open(os.path.join(get_res_dir(), path)).read()
 
 def get_content_type(path):
     guess = mimetypes.guess_type(path)[0]
@@ -63,7 +71,7 @@ def get_content_type(path):
         return "application/octet-stream"
 
 
-def get_resource(path):
+def serve_resource(path):
     if main_is_frozen():
         path = path.replace("/", "\\")
         if RES_ID.has_key(path):
@@ -74,18 +82,24 @@ def get_resource(path):
         else:
             raise cherrypy.NotFound
     else:
-        return serve_file(os.path.join(get_base_dir(), path))
+        return serve_file(os.path.abspath(os.path.join(get_res_dir(), path)))
 
 class Root(object):
+    @classmethod
+    def _get_subpath(cls, args):
+        subpath = urllib.unquote("/".join(args))
+        subpath = subpath.decode("utf_8")
+        return subpath
+        
     def find_indexfile(self, *args):
-        basedir = "/".join(args)
+        basedir = self._get_subpath(args)
         for entry in ["index.html", "index.md"]:
             if os.path.exists(os.path.join(basedir, entry)):
                 return entry
         return None
 
     def dir_handler(self, basedir, *args):
-        subpath = os.path.join(basedir, *args)
+        subpath = os.path.join(basedir, self._get_subpath(args))
         subpath = os.path.normpath(subpath)
 
         if not subpath.startswith(basedir):
@@ -93,7 +107,7 @@ class Root(object):
 
         if self.find_indexfile(subpath):
             print "index found", self.find_indexfile(subpath), "/".join([subpath, self.find_indexfile(subpath)])
-            indexpath = "/".join(args) + "/" + self.find_indexfile(subpath)
+            indexpath = self._get_subpath(args) + "/" + self.find_indexfile(subpath)
             raise cherrypy.HTTPRedirect(indexpath)
 
         result = u""
@@ -126,12 +140,12 @@ class Root(object):
         if not md_exists:
             result += u"<p>You don't have any Markdown document! You can start with creating Markdown document within same directory with executable(ex: mdview.exe)</p>"
 
-        template = Template(get_res_data(".res/dirindex.html"))
+        template = Template(get_res_data("dirindex.html"))
         return template.render(path=subpath, contents=result)
         
     def cmd_handler(self, *args, **kwargs):
-        if len(args) > 0 and args[0] == ".res":
-            return get_resource("/".join(args))
+        if len(args) > 0 and args[0] == RES_PATH:
+            return serve_resource(self._get_subpath(args[1:]))
         else:
             raise cherrypy.NotFound
     
@@ -151,17 +165,17 @@ class Root(object):
 
     @cherrypy.expose
     def default(self, *args, **kwargs): # fallback
-        template = Template(get_res_data(".res/default.html"))
+        template = Template(get_res_data("default.html"))
         return self.default_dispatcher(template, args, **kwargs)
 
     def default_dispatcher(self, template, args, **kwargs):
         if kwargs.has_key("ar"):
-            if debug: print "/".join(["/ar"] + list(args))
-            raise cherrypy.HTTPRedirect("/".join(["/ar"] + list(args)))
+            _subpath = self._get_subpath(["/ar"] + list(args))
+            if debug: print _subpath
+            raise cherrypy.HTTPRedirect(_subpath)
         if len(args) > 0 and args[0][0] is '.':
             return self.cmd_handler(*args, **kwargs)
-        subpath = "/".join(args)
-        subpath = subpath.decode("utf-8")
+        subpath = self._get_subpath(args)
         if debug: print "default:", subpath
         if subpath.endswith(".md"):
             if template:
@@ -175,16 +189,15 @@ class Root(object):
         
     @cherrypy.expose
     def ar(self, *args, **kwargs):
-        subpath = "/".join(args)
+        subpath = self._get_subpath(args)
         if not subpath.endswith(".md"):
             raise cherrypy.HTTPRedirect(subpath)
-        template = Template(get_res_data(".res/ar.html"))
+        template = Template(get_res_data("ar.html"))
         return self.default_dispatcher(template, args, **kwargs)
-        
+
     @cherrypy.expose
     def wfc(self, *args, **kwargs): #wait for change
-        subpath = "/".join(args)
-        subpath = subpath.decode("utf-8")
+        subpath = self._get_subpath(args)
         if debug: print "wfc:", subpath
         f = os.path.abspath(os.path.join(get_base_dir(), subpath))
         parent = os.path.dirname(f)
@@ -225,7 +238,10 @@ class single_instance():
 t = None
 try: 
     me = single_instance()
-    base_dir = os.getcwd()
+    if not debug:
+        print "running in production mode"
+        base_dir = os.getcwd()
+        res_dir = os.path.join(os.getcwd(), RES_PATH)
     print "base directory:", base_dir
     cherrypy.tree.mount(Root())
     cherrypy.server.socket_port = server_port

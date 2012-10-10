@@ -1,6 +1,8 @@
-import glob, sys, imp
+import glob, sys, imp, os
 
 res_list = []
+
+res_dir = ".res"
 
 def main_is_frozen():
     return (hasattr(sys, "frozen") or
@@ -9,10 +11,10 @@ def main_is_frozen():
 
 if main_is_frozen():
     __import__("_reslist")
-    res_list = getattr(sys.modules["_reslist"], "_res")
+    res_list = getattr(sys.modules["_reslist"], res_dir)
     res_list.sort()
 else:
-    res_list = glob.glob(".res/*.*")
+    res_list = [os.path.relpath(_, res_dir) for _ in glob.glob(os.path.join(res_dir, "*.*"))]
     res_list.sort()
 
 def res_id_dict():
