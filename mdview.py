@@ -119,7 +119,6 @@ class Root(object):
         # below here, subpath is now unicode
 
         entries = os.listdir(subpath)
-        print type(entries[0])
         if subpath != basedir:
             result += u"""\t<li><a href="..">../</a></li>\n"""
 
