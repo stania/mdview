@@ -83,6 +83,8 @@ def serve_resource(path):
 class Root(object):
     @classmethod
     def _get_subpath(cls, args):
+        if len(args) > 0 and args[0] is "":
+            args = args[1:]
         subpath = urllib.unquote("/".join(args))
         if type(subpath) == str:
             subpath = subpath.decode("utf-8")
@@ -95,16 +97,16 @@ class Root(object):
                 return entry
         return None
 
-    def dir_handler(self, basedir, *args):
-        subpath = os.path.join(basedir, self._get_subpath(args))
-        subpath = os.path.normpath(subpath)
+    def dir_handler(self, basedir, subpath):
+        abspath = os.path.join(basedir, subpath)
+        abspath = os.path.normpath(abspath)
 
-        if not subpath.startswith(basedir):
+        if not abspath.startswith(basedir):
             raise cherrypy.HTTPError(403)
 
-        if self.find_indexfile(subpath):
-            print "index found", self.find_indexfile(subpath), "/".join([subpath, self.find_indexfile(subpath)])
-            indexpath = self._get_subpath(args) + "/" + self.find_indexfile(subpath)
+        if self.find_indexfile(abspath):
+            print "index found", self.find_indexfile(abspath), "/".join([abspath, self.find_indexfile(abspath)])
+            indexpath = self._get_subpath(abspath) + "/" + self.find_indexfile(abspath)
             raise cherrypy.HTTPRedirect(indexpath)
 
         result = u""
@@ -113,31 +115,36 @@ class Root(object):
 
         md_exists = False
 
-        # if subpath contains non-ascii char, type(subpath) is unicode. unless, str.
+        # if abspath contains non-ascii char, type(abspath) is unicode. unless, str.
         # let's make it as same type
-        if type(subpath) == str:
-            subpath = subpath.decode("utf-8")
-        # below here, subpath is now unicode
+        if type(abspath) == str:
+            abspath = abspath.decode("utf-8")
+        # below here, abspath is now unicode
 
-        entries = os.listdir(subpath)
-        if subpath != basedir:
-            result += u"""\t<li><a href="..">../</a></li>\n"""
+        entries = os.listdir(abspath)
+        if abspath != basedir:
+            href = os.path.dirname(subpath)
+            result += u"""\t<li><a href="/{}">../</a></li>\n""".format(href)
 
         for entry in entries:
+            entry4user = entry
             if entry is u".":
                 continue
             if entry.endswith(u".md"):
                 md_exists = True
-            if os.path.isdir(entry):
-                entry += u"/"
-            result += u"""\t<li><a href="{}">{}</a></li>\n""".format(entry, entry)
+            if os.path.isdir(os.path.join(abspath, entry)):
+                entry4user += u"/"
+            href = self._get_subpath([subpath, entry])
+            if len(href) > 0 and href[0] != "/":
+                href = "/" + href
+            result += u"""\t<li><a href="{}">{}</a></li>\n""".format(href, entry4user)
         result += u"</ul>\n"
 
         if not md_exists:
             result += u"<p>You don't have any Markdown document! You can start with creating Markdown document within same directory with executable(ex: mdview.exe)</p>"
 
         template = Template(get_res_data("dirindex.html"))
-        return template.render(path=subpath, contents=result)
+        return template.render(path=abspath, contents=result)
         
     def cmd_handler(self, *args, **kwargs):
         if len(args) > 0 and args[0] == settings.RES_PATH:
