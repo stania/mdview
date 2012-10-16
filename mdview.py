@@ -67,6 +67,10 @@ def get_content_type(path):
         return "application/octet-stream"
 
 
+def endswith_md_ext(p):
+    return any(p.endswith(_) for _ in settings.md_exts)
+
+
 def serve_resource(path):
     if main_is_frozen():
         path = path.replace("/", "\\")
@@ -92,7 +96,7 @@ class Root(object):
         
     def find_indexfile(self, *args):
         basedir = self._get_subpath(args)
-        for entry in ["index.html", "index.md"]:
+        for entry in ["index.html"] + ["index" + _ for _ in settings.md_exts]:
             if os.path.exists(os.path.join(basedir, entry)):
                 return entry
         return None
@@ -110,7 +114,7 @@ class Root(object):
             raise cherrypy.HTTPRedirect(indexpath)
 
         result = u""
-        result += u"<p>This program renders *.md with Markdown renderer.</p>\n"
+        result += u"<p>This program renders {} with Markdown renderer.</p>\n".format(str(settings.md_exts))
         result += u"<ul>\n"
 
         md_exists = False
@@ -130,7 +134,7 @@ class Root(object):
             entry4user = entry
             if entry is u".":
                 continue
-            if entry.endswith(u".md"):
+            if endswith_md_ext(entry):
                 md_exists = True
             if os.path.isdir(os.path.join(abspath, entry)):
                 entry4user += u"/"
@@ -180,7 +184,7 @@ class Root(object):
             return self.cmd_handler(*args, **kwargs)
         subpath = self._get_subpath(args)
         if settings.debug: print "default:", subpath
-        if subpath.endswith(".md"):
+        if endswith_md_ext(subpath):
             if template:
                 return template.render(path=subpath, contents=self.render_markdown(subpath))
             else:
@@ -193,7 +197,7 @@ class Root(object):
     @cherrypy.expose
     def ar(self, *args, **kwargs):
         subpath = self._get_subpath(args)
-        if not subpath.endswith(".md"):
+        if not endswith_md_ext(subpath):
             raise cherrypy.HTTPRedirect(subpath)
         template = Template(get_res_data("ar.html"))
         return self.default_dispatcher(template, args, **kwargs)

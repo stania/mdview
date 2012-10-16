@@ -15,11 +15,14 @@ class Settings(object):
             dct["server_port"] = 7559
         if not dct.has_key("debug"):
             dct["debug"] = False
+        if not dct.has_key("md_exts"):
+            dct["md_exts"] = [".md"]
         return dct
 
     def __init__(self, json_path):
         dct = {}
         if os.path.exists("mdview.cfg"):
+            print "loading settings from", os.path.abspath("mdview.cfg")
             dct = self.__set_default_settings(json.load(open("mdview.cfg")))
         else:
             dct = self.__set_default_settings({
